@@ -1,3 +1,6 @@
+default:
+  runs_on: "windows-latest"
+  
 packager:
     projects:
         CarrotCakeCMS-Core/CMSAdmin:
