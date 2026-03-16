@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 	<PropertyGroup>
 		<TargetFramework>net8.0</TargetFramework>
 		<Nullable>enable</Nullable>
@@ -78,6 +78,12 @@
 		</Content>
 	</ItemGroup>
 	<Target Name="PreBuild" BeforeTargets="PreBuildEvent">
-		<Exec Command="xcopy &quot;$(ProjectDir)\skins\*.min.css&quot; &quot;..\CMSAdmin\wwwroot\Assets\Admin\skins\&quot; /F/R/Y/I/S/C&#xD;&#xA;xcopy &quot;$(ProjectDir)\editor\*.min.css&quot; &quot;..\CMSAdmin\wwwroot\Assets\Admin\editor\&quot; /F/R/Y/I/S/C&#xD;&#xA;" />
+		<!-- Cross-platform file copy (works on both Windows and macOS) -->
+		<ItemGroup>
+			<SkinFiles Include="$(ProjectDir)skins\*.min.css" />
+			<EditorFiles Include="$(ProjectDir)editor\*.min.css" />
+		</ItemGroup>
+		<Copy SourceFiles="@(SkinFiles)" DestinationFolder="..\CMSAdmin\wwwroot\Assets\Admin\skins\" SkipUnchangedFiles="true" />
+		<Copy SourceFiles="@(EditorFiles)" DestinationFolder="..\CMSAdmin\wwwroot\Assets\Admin\editor\" SkipUnchangedFiles="true" />
 	</Target>
 </Project>
