@@ -1,0 +1,42 @@
+packager:
+    projects:
+        CarrotCakeCMS-Core/CMSAdmin:
+            project_root: CarrotCakeCMS-Core/CMSAdmin
+            packager_manager_type: dotnet
+            root_build_file: CarrotCakeCMS-Core/CMSAdmin/CMSAdminCore.csproj
+            packager_manager_version: net8.0
+        CarrotCakeCMS-Core/CarrotLog:
+            project_root: CarrotCakeCMS-Core/CarrotLog
+            packager_manager_type: dotnet
+            root_build_file: CarrotCakeCMS-Core/CarrotLog/CarrotLog.csproj
+            packager_manager_version: net8.0
+        CarrotCakeCMS-Core/LoremIpsum:
+            project_root: CarrotCakeCMS-Core/LoremIpsum
+            packager_manager_type: dotnet
+            root_build_file: CarrotCakeCMS-Core/LoremIpsum/LoremIpsum.csproj
+            packager_manager_version: net8.0
+        CarrotCakeCMS-Core/Northwind:
+            project_root: CarrotCakeCMS-Core/Northwind
+            packager_manager_type: dotnet
+            root_build_file: CarrotCakeCMS-Core/Northwind/Northwind.csproj
+            packager_manager_version: net8.0
+        CarrotCakeCMS-Core/PluginCalendarModule:
+            project_root: CarrotCakeCMS-Core/PluginCalendarModule
+            packager_manager_type: dotnet
+            root_build_file: CarrotCakeCMS-Core/PluginCalendarModule/PluginCalendarModule.csproj
+            packager_manager_version: net8.0
+        CarrotCakeCMS-Core/PluginEventCalendarModule:
+            project_root: CarrotCakeCMS-Core/PluginEventCalendarModule
+            packager_manager_type: dotnet
+            root_build_file: CarrotCakeCMS-Core/PluginEventCalendarModule/PluginEventCalendarModule.csproj
+            packager_manager_version: net8.0
+        CarrotCakeCMS-Core/PluginFAQ2Module:
+            project_root: CarrotCakeCMS-Core/PluginFAQ2Module
+            packager_manager_type: dotnet
+            root_build_file: CarrotCakeCMS-Core/PluginFAQ2Module/PluginFAQ2Module.csproj
+            packager_manager_version: net8.0
+        CarrotCakeCMS-Core/PluginPhotoGallery:
+            project_root: CarrotCakeCMS-Core/PluginPhotoGallery
+            packager_manager_type: dotnet
+            root_build_file: CarrotCakeCMS-Core/PluginPhotoGallery/PluginPhotoGallery.csproj
+            packager_manager_version: net8.0
