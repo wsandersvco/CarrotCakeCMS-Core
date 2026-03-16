@@ -1,5 +1,5 @@
 # CarrotCakeCMS (MVC Core)
-- 1.0.0
+- 1.0.1
 
 Source code for CarrotCakeCMS (MVC - Core), .Net Core 8
 
