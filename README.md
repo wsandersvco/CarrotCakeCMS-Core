@@ -1,5 +1,6 @@
 # CarrotCakeCMS (MVC Core)
 - 1.0.0
+
 Source code for CarrotCakeCMS (MVC - Core), .Net Core 8
 
 [SITE_CT]: http://www.carrotware.com/contact?from=github-core
