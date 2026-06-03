@@ -48,6 +48,16 @@ jobs:
           # Extract unique top-level folder names
           MODULES=$(echo "$CHANGED_FILES" | cut -d'/' -f1 | sort -u | grep -v '^$')
 
+          # DIAGNOSTIC: Check what was extracted
+          echo "Extracted modules: '$MODULES'"
+
+          # DIAGNOSTIC: For each module, check .csproj existence
+          while IFS= read -r MODULE; do
+            echo "Checking $MODULE:"
+            find "$MODULE" -maxdepth 1 -name "*.csproj" -ls 2>&1 | head -5 || echo "  find failed"
+            ls -la "$MODULE"/ 2>&1 | head -10 || echo "  ls failed"
+          done <<< "$MODULES"
+
           # Filter to only folders containing .csproj files
           FILTERED_MODULES=()
           while IFS= read -r MODULE; do
