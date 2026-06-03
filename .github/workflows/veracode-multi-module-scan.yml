@@ -73,6 +73,9 @@ jobs:
             MODULES_JSON=$(printf '%s\n' "${FILTERED_MODULES[@]}" | jq -R . | jq -s .)
           fi
 
+          echo "DEBUG: MODULES_JSON = '$MODULES_JSON'"
+          echo "DEBUG: Length = ${#MODULES_JSON}"
+
           echo "modules=$MODULES_JSON" >> $GITHUB_OUTPUT
           echo "Changed modules: $MODULES_JSON"
 
