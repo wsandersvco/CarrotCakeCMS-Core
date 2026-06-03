@@ -126,28 +126,56 @@ jobs:
             exit 1
           fi
 
-          # Submit all ZIPs in parallel
+          # Submit ZIPs with controlled concurrency (max 3 parallel)
+          MAX_PARALLEL=3
           PIDS=()
+          FAILED=0
+          SUBMITTED=0
+          SUCCEEDED=0
+
           for ZIP in $ZIPS; do
-            echo "Submitting $ZIP to Veracode..."
-            ./veracode scan \
+            # Wait if we've reached max parallel jobs
+            while [ ${#PIDS[@]} -ge $MAX_PARALLEL ]; do
+              for i in "${!PIDS[@]}"; do
+                if ! kill -0 "${PIDS[$i]}" 2>/dev/null; then
+                  wait "${PIDS[$i]}"
+                  if [ $? -ne 0 ]; then
+                    FAILED=$((FAILED + 1))
+                  else
+                    SUCCEEDED=$((SUCCEEDED + 1))
+                  fi
+                  unset 'PIDS[$i]'
+                fi
+              done
+              PIDS=("${PIDS[@]}")  # Reindex array
+            done
+
+            echo "Submitting $ZIP to Veracode ($(($SUBMITTED + 1)) of $(echo "$ZIPS" | wc -l))..."
+            SUBMITTED=$((SUBMITTED + 1))
+
+            # Submit with 10 minute timeout
+            timeout 600 ./veracode scan \
               --vid "${{ secrets.VERACODE_API_ID }}" \
               --vkey "${{ secrets.VERACODE_API_KEY }}" \
               --file "$ZIP" \
               --fail-on-severity "critical" \
-              --fail-build true &
+              --fail-build true 2>&1 | sed "s/^/[$ZIP] /" &
             PIDS+=($!)
           done
 
-          # Wait for all submissions and collect exit codes
-          FAILED=0
+          # Wait for all remaining submissions
           for PID in "${PIDS[@]}"; do
-            if ! wait $PID; then
-              FAILED=1
+            wait $PID
+            if [ $? -ne 0 ]; then
+              FAILED=$((FAILED + 1))
+            else
+              SUCCEEDED=$((SUCCEEDED + 1))
             fi
           done
 
-          if [ $FAILED -eq 1 ]; then
+          echo "Scan results: $SUCCEEDED succeeded, $FAILED failed out of $SUBMITTED total"
+
+          if [ $FAILED -gt 0 ]; then
             echo "One or more scans failed"
             exit 1
           fi
