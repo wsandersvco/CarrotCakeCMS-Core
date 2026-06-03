@@ -97,4 +97,57 @@ jobs:
       matrix:
         module: ${{ fromJson(needs.detect-changes.outputs.modules) }}
     steps:
-      - run: echo "Scanning ${{ matrix.module }}"
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: veracode-${{ matrix.module }}
+          path: veraout/${{ matrix.module }}/
+
+      - name: List downloaded artifacts
+        run: |
+          echo "Artifacts for ${{ matrix.module }}:"
+          find veraout/${{ matrix.module }}/ -type f \( -name "*.zip" -o -name "*.tar.gz" \)
+
+      - name: Install Veracode CLI
+        run: |
+          set -e
+          curl -fsS https://tools.veracode.com/veracode-cli/install | sh
+
+      - name: Submit packages to Veracode pipeline scan
+        run: |
+          set -e
+          ZIPS=$(find veraout/${{ matrix.module }}/ -type f \( -name "*.zip" -o -name "*.tar.gz" \))
+
+          if [ -z "$ZIPS" ]; then
+            echo "No scan packages found for ${{ matrix.module }}"
+            exit 1
+          fi
+
+          # Submit all ZIPs in parallel
+          PIDS=()
+          for ZIP in $ZIPS; do
+            echo "Submitting $ZIP to Veracode..."
+            ./veracode scan \
+              --vid "${{ secrets.VERACODE_API_ID }}" \
+              --vkey "${{ secrets.VERACODE_API_KEY }}" \
+              --file "$ZIP" \
+              --fail-on-severity "critical" \
+              --fail-build true &
+            PIDS+=($!)
+          done
+
+          # Wait for all submissions and collect exit codes
+          FAILED=0
+          for PID in "${PIDS[@]}"; do
+            if ! wait $PID; then
+              FAILED=1
+            fi
+          done
+
+          if [ $FAILED -eq 1 ]; then
+            echo "One or more scans failed"
+            exit 1
+          fi
