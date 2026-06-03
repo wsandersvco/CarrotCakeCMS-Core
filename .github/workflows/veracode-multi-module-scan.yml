@@ -91,7 +91,7 @@ jobs:
 
   veracode-scan:
     name: Veracode Pipeline Scan
-    needs: package-modules
+    needs: [ package-modules, detect-changes ]
     runs-on: ubuntu-latest
     strategy:
       matrix:
