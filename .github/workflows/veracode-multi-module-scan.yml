@@ -84,6 +84,7 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.modules != '[]'
     runs-on: ubuntu-latest
+    # NOTE: When adding modules to the strategy matrix, ensure corresponding zip_files_MODULENAME outputs are added below
     outputs:
       zip_files_CMSCore: ${{ steps.zip-files.outputs.zip_files_CMSCore }}
       zip_files_CMSAdmin: ${{ steps.zip-files.outputs.zip_files_CMSAdmin }}
