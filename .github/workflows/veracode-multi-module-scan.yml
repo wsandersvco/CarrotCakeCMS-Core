@@ -63,7 +63,29 @@ jobs:
       matrix:
         module: ${{ fromJson(needs.detect-changes.outputs.modules) }}
     steps:
-      - run: echo "Packaging ${{ matrix.module }}"
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Veracode CLI
+        run: |
+          curl -fsS https://tools.veracode.com/veracode-cli/install | sh
+          ./veracode version
+
+      - name: Package module with Veracode
+        run: |
+          ./veracode package \
+            -s "${{ matrix.module }}" \
+            -a \
+            -o "veraout/${{ matrix.module }}" \
+            -t directory
+
+      - name: Upload packaged module artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: veracode-${{ matrix.module }}
+          path: veraout/${{ matrix.module }}/
+          retention-days: 1
 
   veracode-scan:
     name: Veracode Pipeline Scan
