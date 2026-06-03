@@ -84,6 +84,15 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.modules != '[]'
     runs-on: ubuntu-latest
+    outputs:
+      zip_files_CMSCore: ${{ steps.zip-files.outputs.zip_files_CMSCore }}
+      zip_files_CMSAdmin: ${{ steps.zip-files.outputs.zip_files_CMSAdmin }}
+      zip_files_CMSSecurity: ${{ steps.zip-files.outputs.zip_files_CMSSecurity }}
+      zip_files_CMSComponents: ${{ steps.zip-files.outputs.zip_files_CMSComponents }}
+      zip_files_CMSInterfaces: ${{ steps.zip-files.outputs.zip_files_CMSInterfaces }}
+      zip_files_CMSData: ${{ steps.zip-files.outputs.zip_files_CMSData }}
+      zip_files_WebComponents: ${{ steps.zip-files.outputs.zip_files_WebComponents }}
+      zip_files_Northwind: ${{ steps.zip-files.outputs.zip_files_Northwind }}
     strategy:
       matrix:
         module: ${{ fromJson(needs.detect-changes.outputs.modules) }}
@@ -105,6 +114,12 @@ jobs:
             -a \
             -o "veraout/${{ matrix.module }}" \
             -t directory
+
+      - name: Output ZIP file list
+        id: zip-files
+        run: |
+          ZIP_FILES=$(find "veraout/${{ matrix.module }}/" -type f \( -name "*.zip" -o -name "*.tar.gz" \) -printf '%f\n' | jq -c -Rs 'split("\n") | map(select(length > 0))')
+          echo "zip_files_${{ matrix.module }}=$ZIP_FILES" >> $GITHUB_OUTPUT
 
       - name: Upload packaged module artifacts
         uses: actions/upload-artifact@v4
