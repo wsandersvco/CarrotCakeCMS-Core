@@ -24,18 +24,25 @@ jobs:
         id: detect
         run: |
           # Get all changed files from base to PR branch
-          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD 2>/dev/null || git diff --name-only HEAD~1...HEAD)
+          if CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD 2>/dev/null); then
+            echo "Using base branch diff"
+          elif CHANGED_FILES=$(git diff --name-only HEAD~1...HEAD 2>/dev/null); then
+            echo "Using fallback diff (HEAD~1...HEAD)"
+          else
+            echo "::warning::Could not determine changed files"
+            CHANGED_FILES=""
+          fi
 
           # Extract unique top-level folder names
           MODULES=$(echo "$CHANGED_FILES" | cut -d'/' -f1 | sort -u | grep -v '^$')
 
           # Filter to only folders containing .csproj files
           FILTERED_MODULES=()
-          for MODULE in $MODULES; do
-            if [ -f "$MODULE"/*.csproj ]; then
+          while IFS= read -r MODULE; do
+            if find "$MODULE" -maxdepth 1 -name "*.csproj" -quit 2>/dev/null | grep -q .; then
               FILTERED_MODULES+=("$MODULE")
             fi
-          done
+          done <<< "$MODULES"
 
           # Convert to JSON array
           if [ ${#FILTERED_MODULES[@]} -eq 0 ]; then
