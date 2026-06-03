@@ -111,6 +111,7 @@ jobs:
       - name: Combine all module ZIPs
         id: combine
         run: |
+          set -e
           # Find all ZIP files across all processed modules in this job
           ZIPS=$(find veraout/ -type f \( -name "*.zip" -o -name "*.tar.gz" \) -printf '%P\n' | sort)
 
@@ -136,6 +137,7 @@ jobs:
   combine-zips:
     name: Combine ZIP Files
     needs: package-modules
+    if: needs.package-modules.outputs.all_zips != '[]'
     runs-on: ubuntu-latest
     outputs:
       all_zips: ${{ needs.package-modules.outputs.all_zips }}
@@ -187,7 +189,7 @@ jobs:
           ls -lh "${{ matrix.zip_file }}"
 
       - name: Run Veracode Pipeline Scan
-        uses: veracode/Veracode-pipeline-scan-action@esd-true
+        uses: veracode/Veracode-pipeline-scan-action@v1.0.11
         with:
           vid: ${{ secrets.VERACODE_API_ID }}
           vkey: ${{ secrets.VERACODE_API_KEY }}
