@@ -70,7 +70,7 @@ jobs:
           if [ ${#FILTERED_MODULES[@]} -eq 0 ]; then
             MODULES_JSON="[]"
           else
-            MODULES_JSON=$(printf '%s\n' "${FILTERED_MODULES[@]}" | jq -R . | jq -s .)
+            MODULES_JSON=$(printf '%s\n' "${FILTERED_MODULES[@]}" | jq -R . | jq -c -s .)
           fi
 
           echo "DEBUG: MODULES_JSON = '$MODULES_JSON'"
