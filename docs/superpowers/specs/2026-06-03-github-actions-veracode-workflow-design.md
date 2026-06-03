@@ -1,0 +1,149 @@
+# GitHub Actions Workflow: Multi-Module Veracode Scanning
+
+**Date:** 2026-06-03  
+**Project:** CarrotCakeCMS-Core  
+**Objective:** Automatically detect module changes in pull requests, package changed modules with compiled DLLs and debug symbols, and submit them to Veracode for security scanning.
+
+---
+
+## Overview
+
+The workflow implements a three-job pipeline that:
+1. Detects which modules have changes in a PR
+2. Packages each changed module using the Veracode CLI
+3. Submits all packages to Veracode pipeline scan with parallel processing
+
+This approach ensures efficient resource usage (only changed modules are scanned) while maintaining security rigor (all changed code is scanned).
+
+---
+
+## Trigger & Context
+
+- **Trigger:** Pull requests
+- **Base comparison:** PR branch against the target branch (the branch being merged into)
+- **Supported modules:** CMSCore, CMSAdmin, CMSSecurity, CMSComponents, CMSInterfaces, CMSData, WebComponents, Northwind (identified by `.csproj` files)
+
+---
+
+## Job 1: detect-changes
+
+**Purpose:** Identify which modules have changes in the PR.
+
+**Single run per workflow execution**
+
+**Process:**
+1. Check out the repository
+2. Fetch the base branch to enable diff comparison
+3. Run `git diff --name-only ${{ github.base_ref }}...HEAD` to get all changed file paths
+4. Parse output to extract unique top-level folder names (e.g., "CMSCore" from "CMSCore/Models/User.cs")
+5. Filter to only folders containing `.csproj` files (ensures only actual modules are included)
+6. Format results as JSON array: `["CMSCore", "CMSAdmin"]`
+7. Output the JSON array as job output named `modules` for downstream job consumption
+
+**Output:**
+- Job output: `modules` (JSON array of module folder names)
+- Example: `["CMSCore", "CMSAdmin", "CMSSecurity"]`
+
+**Failure handling:** If no changes are detected, output empty array `[]`; workflow continues gracefully.
+
+---
+
+## Job 2: package-modules
+
+**Purpose:** Build and package each changed module for Veracode scanning.
+
+**Depends on:** `detect-changes`  
+**Matrix:** Over module names from `detect-changes.outputs.modules`  
+**Parallel execution:** One job per module (e.g., if 3 modules changed, 3 jobs run in parallel)
+
+**Process per matrix job:**
+1. Check out the repository
+2. Run Veracode package command:
+   ```
+   veracode package -s <module_folder> -a -o veraout/<module_folder> -t directory
+   ```
+   - `-s <module_folder>`: Source directory (the module folder)
+   - `-a`: Trust the directory
+   - `-o veraout/<module_folder>`: Output directory for generated ZIPs
+   - `-t directory`: Treat source as a directory
+3. Upload all generated ZIPs from `veraout/<module_folder>` as a single artifact
+   - Artifact name: `veracode-<module_folder>` (e.g., `veracode-CMSCore`)
+   - This ensures the scan job can reliably find all ZIPs for a module
+
+**Important:** The Veracode CLI may generate multiple ZIP files per module. All ZIPs must be captured in the artifact.
+
+**Artifacts created:**
+- One artifact per module containing all its generated ZIPs
+- Example: artifact `veracode-CMSCore` contains multiple ZIP files from the package command
+
+**Failure handling:** If packaging fails for any module, that matrix job fails and the entire `package-modules` job fails, preventing the scan job from running incomplete packages.
+
+---
+
+## Job 3: veracode-scan
+
+**Purpose:** Submit all packaged modules to Veracode for security scanning.
+
+**Depends on:** `package-modules`  
+**Matrix:** Over module names from `detect-changes.outputs.modules`  
+**Parallel execution:** One job per module (e.g., if 3 modules changed, 3 jobs run in parallel)
+
+**Process per matrix job:**
+1. Download the artifact `veracode-<module_folder>` (contains all ZIPs for that module)
+2. For each ZIP file in the downloaded artifact, submit to Veracode pipeline scan in parallel:
+   - Use `veracode/pipeline-scan-action@v1` (or appropriate version)
+   - Pass `--file <zip_path>` for each ZIP
+   - Use GitHub secrets for Veracode API credentials: `${{ secrets.VERACODE_API_ID }}` and `${{ secrets.VERACODE_API_KEY }}`
+   - Run each submission as a background process to enable parallel execution
+3. Wait for all background submissions to complete
+4. If any scan **result** indicates failure (based on severity thresholds configured in the action), fail the entire job
+
+**Failure behavior:**
+- Scan submission failures do not fail the job (submissions are fire-and-forget)
+- Scan result failures (e.g., critical vulnerabilities detected) do fail the job
+- If any matrix job fails, the entire `veracode-scan` job fails
+- No PR annotations, check outputs, or comments are generated
+
+**Parallel submission:** All ZIPs for a module are submitted concurrently within the same job, then the job waits for all submissions to complete before concluding.
+
+---
+
+## Artifact Strategy
+
+- **Naming:** `veracode-<module_folder>` ensures unique, predictable artifact names
+- **Content:** All ZIP files generated by the Veracode package command for that module
+- **Lifetime:** Default GitHub Actions retention (35 days)
+- **Scope:** Artifact is accessible only to the same workflow run; scan job downloads it in the same run
+
+---
+
+## Error Handling & Edge Cases
+
+| Scenario | Behavior |
+|----------|----------|
+| No modules changed | `detect-changes` outputs empty array; both matrix jobs skip gracefully (no matrix items) |
+| Module not found in repo | `detect-changes` filters by `.csproj` presence; non-modules are excluded automatically |
+| Veracode package command fails | `package-modules` job fails; `veracode-scan` job does not run |
+| Multiple ZIPs per module | All ZIPs captured in single artifact; scan job processes all in parallel |
+| Veracode scan fails | Job fails; no PR annotations or comments generated |
+| GitHub secrets not configured | Action fails with clear error; workflow will not proceed |
+
+---
+
+## Security Considerations
+
+- **API credentials:** Stored as GitHub secrets (`VERACODE_API_ID`, `VERACODE_API_KEY`); never logged or exposed
+- **Artifact retention:** Limited to default GitHub Actions retention (35 days); ZIPs contain compiled code and debug symbols
+- **PR feedback:** No public scan results posted to PR; results are available in Veracode dashboard
+- **Module scope:** Only changed modules are scanned; unchanged code is not rescanned
+
+---
+
+## Success Criteria
+
+- ✅ Changed modules are correctly identified via diff
+- ✅ Each module is packaged with all generated ZIPs
+- ✅ Packages are submitted to Veracode with proper authentication
+- ✅ Scan jobs run in parallel for efficiency
+- ✅ Workflow fails if any scan detects critical issues
+- ✅ No PR annotations or check outputs are generated
