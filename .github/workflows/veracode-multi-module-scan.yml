@@ -1,0 +1,35 @@
+name: Veracode Multi-Module Scan
+
+on:
+  pull_request:
+    branches: ['**']
+
+jobs:
+  detect-changes:
+    name: Detect Changed Modules
+    runs-on: ubuntu-latest
+    outputs:
+      modules: ${{ steps.detect.outputs.modules }}
+    steps:
+      # Will be populated in Task 2
+
+  package-modules:
+    name: Package Modules
+    needs: detect-changes
+    if: needs.detect-changes.outputs.modules != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        module: ${{ fromJson(needs.detect-changes.outputs.modules) }}
+    steps:
+      # Will be populated in Task 3
+
+  veracode-scan:
+    name: Veracode Pipeline Scan
+    needs: package-modules
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        module: ${{ fromJson(needs.detect-changes.outputs.modules) }}
+    steps:
+      # Will be populated in Task 4
