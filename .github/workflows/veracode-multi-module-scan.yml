@@ -146,6 +146,15 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       all_zips: ${{ steps.combine.outputs.all_zips }}
+    env:
+      ZIP_FILES_CMSCORE: ${{ needs.package-modules.outputs.zip_files_CMSCore }}
+      ZIP_FILES_CMSADMIN: ${{ needs.package-modules.outputs.zip_files_CMSAdmin }}
+      ZIP_FILES_CMSSECURITY: ${{ needs.package-modules.outputs.zip_files_CMSSecurity }}
+      ZIP_FILES_CMSCOMPONENTS: ${{ needs.package-modules.outputs.zip_files_CMSComponents }}
+      ZIP_FILES_CMSINTERFACES: ${{ needs.package-modules.outputs.zip_files_CMSInterfaces }}
+      ZIP_FILES_CMSDATA: ${{ needs.package-modules.outputs.zip_files_CMSData }}
+      ZIP_FILES_WEBCOMPONENTS: ${{ needs.package-modules.outputs.zip_files_WebComponents }}
+      ZIP_FILES_NORTHWIND: ${{ needs.package-modules.outputs.zip_files_Northwind }}
     steps:
       - name: Combine ZIP files from all modules
         id: combine
@@ -157,9 +166,9 @@ jobs:
           MODULES=("CMSCore" "CMSAdmin" "CMSSecurity" "CMSComponents" "CMSInterfaces" "CMSData" "WebComponents" "Northwind")
 
           for MODULE in "${MODULES[@]}"; do
-            # Get the ZIP files output for this module using dynamic variable reference
-            OUTPUT_VAR="zip_files_${MODULE}"
-            ZIP_FILES="${!OUTPUT_VAR:-}"
+            # Convert module name to env var name (e.g., CMSCore -> ZIP_FILES_CMSCORE)
+            ENV_VAR="ZIP_FILES_$(echo "$MODULE" | tr '[:lower:]' '[:upper:]')"
+            ZIP_FILES="${!ENV_VAR:-}"
 
             if [ -z "$ZIP_FILES" ] || [ "$ZIP_FILES" = "null" ]; then
               echo "No ZIPs for module $MODULE (skipped)"
