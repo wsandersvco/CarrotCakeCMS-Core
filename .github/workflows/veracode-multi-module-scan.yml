@@ -159,7 +159,14 @@ jobs:
         id: extract-module
         run: |
           # Extract module name from zip_file (e.g., "veraout/CMSCore/app.zip" -> "CMSCore")
-          MODULE=$(echo '${{ matrix.zip_file }}' | cut -d'/' -f2)
+          MODULE=$(basename "$(dirname '${{ matrix.zip_file }}')")
+
+          # Validate that module extraction was successful
+          if [ -z "$MODULE" ] || [ "$MODULE" = "veraout" ]; then
+            echo "::error::Failed to extract valid module name from ${{ matrix.zip_file }}"
+            exit 1
+          fi
+
           echo "module=$MODULE" >> $GITHUB_OUTPUT
           echo "Extracted module: $MODULE from ${{ matrix.zip_file }}"
 
