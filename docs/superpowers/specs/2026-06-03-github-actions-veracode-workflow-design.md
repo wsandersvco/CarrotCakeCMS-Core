@@ -91,12 +91,17 @@ This approach ensures efficient resource usage (only changed modules are scanned
 **Process per matrix job:**
 1. Download the artifact `veracode-<module_folder>` (contains all ZIPs for that module)
 2. For each ZIP file in the downloaded artifact, submit to Veracode pipeline scan in parallel:
-   - Use `veracode/pipeline-scan-action@v1` (or appropriate version)
-   - Pass `--file <zip_path>` for each ZIP
-   - Use GitHub secrets for Veracode API credentials: `${{ secrets.VERACODE_API_ID }}` and `${{ secrets.VERACODE_API_KEY }}`
-   - Run each submission as a background process to enable parallel execution
+   - Use `veracode/pipeline-scan-action@v1.0.11` (or appropriate version)
+   - Invoke with the following inputs:
+     - `vid`: `${{ secrets.VERACODE_API_ID }}`
+     - `vkey`: `${{ secrets.VERACODE_API_KEY }}`
+     - `file`: `<zip_path>` (full path to the ZIP file)
+     - `token`: `${{ github.token }}`
+     - `fail_on_severity`: `"critical"` (or adjust based on policy; fail if critical flaws found)
+     - `fail_build`: `true` (fail the job if scan results indicate failure)
+   - Run each invocation as a background process to enable parallel execution
 3. Wait for all background submissions to complete
-4. If any scan **result** indicates failure (based on severity thresholds configured in the action), fail the entire job
+4. If any scan **result** indicates failure (based on the `fail_on_severity` threshold), that action fails and the job fails
 
 **Failure behavior:**
 - Scan submission failures do not fail the job (submissions are fire-and-forget)
@@ -105,6 +110,28 @@ This approach ensures efficient resource usage (only changed modules are scanned
 - No PR annotations, check outputs, or comments are generated
 
 **Parallel submission:** All ZIPs for a module are submitted concurrently within the same job, then the job waits for all submissions to complete before concluding.
+
+---
+
+## Veracode Pipeline-Scan Action Configuration
+
+The `veracode/pipeline-scan-action` accepts the following key inputs (full reference: [action.yml](https://github.com/veracode/Veracode-pipeline-scan-action)):
+
+| Input | Required | Purpose |
+|-------|----------|---------|
+| `vid` | Yes | Veracode API ID (from `VERACODE_API_ID` secret) |
+| `vkey` | Yes | Veracode API key (from `VERACODE_API_KEY` secret) |
+| `file` | Yes | Path to the ZIP file to scan |
+| `token` | Yes | GitHub token for artifact access (`${{ github.token }}`) |
+| `fail_build` | No | Set to `true` to fail the job if scan results indicate failure |
+| `fail_on_severity` | No | Comma-separated severity levels to fail on (e.g., `"critical"`, `"critical,high"`) |
+| `fail_on_cwe` | No | Comma-separated CWE IDs to fail on |
+| `fail_build` | No | Set to `true` to fail the action if policy violations are detected |
+| `verbose` | No | Set to `true` for detailed output |
+| `json_output` | No | Set to `true` to output results in JSON (default: true) |
+| `summary_display` | No | Set to `true` to display human-readable results summary (default: true) |
+
+For this workflow, the minimal required inputs are `vid`, `vkey`, `file`, `token`, `fail_on_severity`, and `fail_build`.
 
 ---
 
