@@ -68,11 +68,13 @@ jobs:
 
       - name: Install Veracode CLI
         run: |
+          set -e
           curl -fsS https://tools.veracode.com/veracode-cli/install | sh
-          ./veracode version
+          ./veracode version || exit 1
 
       - name: Package module with Veracode
         run: |
+          set -e
           ./veracode package \
             -s "${{ matrix.module }}" \
             -a \
