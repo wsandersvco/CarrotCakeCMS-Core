@@ -85,7 +85,14 @@ jobs:
     if: needs.detect-changes.outputs.modules != '[]'
     runs-on: ubuntu-latest
     outputs:
-      all_zips: ${{ steps.combine.outputs.all_zips }}
+      zip_files_CMSCore: ${{ steps.output-zips.outputs.zip_files_CMSCore }}
+      zip_files_CMSAdmin: ${{ steps.output-zips.outputs.zip_files_CMSAdmin }}
+      zip_files_CMSSecurity: ${{ steps.output-zips.outputs.zip_files_CMSSecurity }}
+      zip_files_CMSComponents: ${{ steps.output-zips.outputs.zip_files_CMSComponents }}
+      zip_files_CMSInterfaces: ${{ steps.output-zips.outputs.zip_files_CMSInterfaces }}
+      zip_files_CMSData: ${{ steps.output-zips.outputs.zip_files_CMSData }}
+      zip_files_WebComponents: ${{ steps.output-zips.outputs.zip_files_WebComponents }}
+      zip_files_Northwind: ${{ steps.output-zips.outputs.zip_files_Northwind }}
     strategy:
       matrix:
         module: ${{ fromJson(needs.detect-changes.outputs.modules) }}
@@ -108,23 +115,22 @@ jobs:
             -o "veraout/${{ matrix.module }}" \
             -t directory
 
-      - name: Combine all module ZIPs
-        id: combine
+      - name: Find generated ZIP files
+        id: output-zips
         run: |
-          set -e
-          # Find all ZIP files across all processed modules in this job
-          ZIPS=$(find veraout/ -type f \( -name "*.zip" -o -name "*.tar.gz" \) -printf '%P\n' | sort)
+          # Find all ZIP files in this module's output directory
+          ZIPS=$(find veraout/${{ matrix.module }}/ -type f \( -name "*.zip" -o -name "*.tar.gz" \) -printf '%f\n' | sort)
 
           if [ -z "$ZIPS" ]; then
-            echo "::warning::No ZIP files found for any module"
+            echo "::warning::No ZIP files found for module ${{ matrix.module }}"
             ZIP_ARRAY='[]'
           else
-            # Convert to JSON array with full paths (veraout/MODULE/filename.zip)
-            ZIP_ARRAY=$(printf '%s\n' "$ZIPS" | sed 's|^|veraout/|' | jq -R . | jq -c -s .)
+            # Convert to JSON array with relative filenames (not full paths)
+            ZIP_ARRAY=$(printf '%s\n' "$ZIPS" | jq -R . | jq -c -s .)
           fi
 
-          echo "Found ZIPs: $ZIP_ARRAY"
-          echo "all_zips=$ZIP_ARRAY" >> $GITHUB_OUTPUT
+          echo "Found ZIPs for ${{ matrix.module }}: $ZIP_ARRAY"
+          echo "zip_files_${{ matrix.module }}=$ZIP_ARRAY" >> $GITHUB_OUTPUT
 
       - name: Upload packaged module artifacts
         uses: actions/upload-artifact@v4
@@ -137,14 +143,44 @@ jobs:
   combine-zips:
     name: Combine ZIP Files
     needs: package-modules
-    if: needs.package-modules.outputs.all_zips != '[]'
     runs-on: ubuntu-latest
     outputs:
-      all_zips: ${{ needs.package-modules.outputs.all_zips }}
+      all_zips: ${{ steps.combine.outputs.all_zips }}
     steps:
-      - name: Pass through combined ZIPs
+      - name: Combine ZIP files from all modules
+        id: combine
         run: |
-          echo "All ZIPs to scan: ${{ needs.package-modules.outputs.all_zips }}"
+          set -e
+          declare -a ALL_ZIPS
+
+          # Hardcoded module list - must match detect-changes logic
+          MODULES=("CMSCore" "CMSAdmin" "CMSSecurity" "CMSComponents" "CMSInterfaces" "CMSData" "WebComponents" "Northwind")
+
+          for MODULE in "${MODULES[@]}"; do
+            # Get the ZIP files output for this module using dynamic variable reference
+            OUTPUT_VAR="zip_files_${MODULE}"
+            ZIP_FILES="${!OUTPUT_VAR:-}"
+
+            if [ -z "$ZIP_FILES" ] || [ "$ZIP_FILES" = "null" ]; then
+              echo "No ZIPs for module $MODULE (skipped)"
+              continue
+            fi
+
+            # Parse JSON array and add full paths
+            for ZIP in $(echo "$ZIP_FILES" | jq -r '.[]'); do
+              ALL_ZIPS+=("veraout/$MODULE/$ZIP")
+            done
+          done
+
+          # Convert to JSON array
+          if [ ${#ALL_ZIPS[@]} -eq 0 ]; then
+            ALL_ZIPS_JSON="[]"
+          else
+            ALL_ZIPS_JSON=$(printf '%s\n' "${ALL_ZIPS[@]}" | jq -R . | jq -c -s .)
+          fi
+
+          echo "Combined ZIPs: $ALL_ZIPS_JSON"
+          echo "all_zips=$ALL_ZIPS_JSON" >> $GITHUB_OUTPUT
 
   veracode-scan:
     name: Veracode Pipeline Scan
