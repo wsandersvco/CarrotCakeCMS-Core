@@ -130,93 +130,88 @@ jobs:
           path: veraout/${{ matrix.module }}/
           retention-days: 1
 
+  combine-zips:
+    name: Combine ZIP Files
+    needs: [ package-modules, detect-changes ]
+    runs-on: ubuntu-latest
+    outputs:
+      all_zips: ${{ steps.combine.outputs.all_zips }}
+    steps:
+      - name: Combine ZIP files from all modules
+        id: combine
+        run: |
+          # Array to hold all ZIP paths
+          declare -a ALL_ZIPS
+
+          # Process each module and its ZIP files
+          MODULES='${{ needs.detect-changes.outputs.modules }}'
+
+          for MODULE in $(echo "$MODULES" | jq -r '.[]'); do
+            # Get the ZIP files output for this module
+            ZIP_FILES_KEY="zip_files_${MODULE}"
+            ZIP_FILES=$(eval "echo \${{ needs.package-modules.outputs.$ZIP_FILES_KEY }}")
+
+            if [ -z "$ZIP_FILES" ] || [ "$ZIP_FILES" = "null" ]; then
+              echo "::warning::No ZIPs found for module $MODULE"
+              continue
+            fi
+
+            # Add each ZIP with its full path
+            for ZIP in $(echo "$ZIP_FILES" | jq -r '.[]'); do
+              ALL_ZIPS+=("veraout/$MODULE/$ZIP")
+            done
+          done
+
+          # Convert to JSON array
+          if [ ${#ALL_ZIPS[@]} -eq 0 ]; then
+            ALL_ZIPS_JSON="[]"
+          else
+            ALL_ZIPS_JSON=$(printf '%s\n' "${ALL_ZIPS[@]}" | jq -R . | jq -c -s .)
+          fi
+
+          echo "Combined ZIPs: $ALL_ZIPS_JSON"
+          echo "all_zips=$ALL_ZIPS_JSON" >> $GITHUB_OUTPUT
+
   veracode-scan:
     name: Veracode Pipeline Scan
-    needs: [ package-modules, detect-changes ]
+    needs: [ package-modules, detect-changes, combine-zips ]
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        module: ${{ fromJson(needs.detect-changes.outputs.modules) }}
+        zip_file: ${{ fromJson(needs.combine-zips.outputs.all_zips) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Extract module from ZIP path
+        id: extract-module
+        run: |
+          # Extract module name from zip_file (e.g., "veraout/CMSCore/app.zip" -> "CMSCore")
+          MODULE=$(echo '${{ matrix.zip_file }}' | cut -d'/' -f2)
+          echo "module=$MODULE" >> $GITHUB_OUTPUT
+          echo "Extracted module: $MODULE from ${{ matrix.zip_file }}"
+
       - name: Download packaged artifacts
         uses: actions/download-artifact@v4
         with:
-          name: veracode-${{ matrix.module }}
-          path: veraout/${{ matrix.module }}/
+          name: veracode-${{ steps.extract-module.outputs.module }}
+          path: veraout/${{ steps.extract-module.outputs.module }}/
 
-      - name: List downloaded artifacts
+      - name: Verify ZIP file exists
         run: |
-          echo "Artifacts for ${{ matrix.module }}:"
-          find veraout/${{ matrix.module }}/ -type f \( -name "*.zip" -o -name "*.tar.gz" \)
-
-      - name: Install Veracode CLI
-        run: |
-          set -e
-          curl -fsS https://tools.veracode.com/veracode-cli/install | sh
-
-      - name: Submit packages to Veracode pipeline scan
-        run: |
-          set -e
-          ZIPS=$(find veraout/${{ matrix.module }}/ -type f \( -name "*.zip" -o -name "*.tar.gz" \))
-
-          if [ -z "$ZIPS" ]; then
-            echo "No scan packages found for ${{ matrix.module }}"
+          if [ ! -f "${{ matrix.zip_file }}" ]; then
+            echo "::error::ZIP file not found: ${{ matrix.zip_file }}"
+            ls -la veraout/${{ steps.extract-module.outputs.module }}/ || echo "Directory does not exist"
             exit 1
           fi
+          echo "Verified ZIP file: ${{ matrix.zip_file }}"
+          ls -lh "${{ matrix.zip_file }}"
 
-          # Submit ZIPs with controlled concurrency (max 3 parallel)
-          MAX_PARALLEL=3
-          PIDS=()
-          FAILED=0
-          SUBMITTED=0
-          SUCCEEDED=0
-
-          for ZIP in $ZIPS; do
-            # Wait if we've reached max parallel jobs
-            while [ ${#PIDS[@]} -ge $MAX_PARALLEL ]; do
-              for i in "${!PIDS[@]}"; do
-                if ! kill -0 "${PIDS[$i]}" 2>/dev/null; then
-                  wait "${PIDS[$i]}"
-                  if [ $? -ne 0 ]; then
-                    FAILED=$((FAILED + 1))
-                  else
-                    SUCCEEDED=$((SUCCEEDED + 1))
-                  fi
-                  unset 'PIDS[$i]'
-                fi
-              done
-              PIDS=("${PIDS[@]}")  # Reindex array
-            done
-
-            echo "Submitting $ZIP to Veracode ($(($SUBMITTED + 1)) of $(echo "$ZIPS" | wc -l))..."
-            SUBMITTED=$((SUBMITTED + 1))
-
-            # Submit with 10 minute timeout
-            timeout 600 ./veracode scan \
-              --vid "${{ secrets.VERACODE_API_ID }}" \
-              --vkey "${{ secrets.VERACODE_API_KEY }}" \
-              --file "$ZIP" \
-              --fail-on-severity "critical" \
-              --fail-build true 2>&1 | sed "s/^/[$ZIP] /" &
-            PIDS+=($!)
-          done
-
-          # Wait for all remaining submissions
-          for PID in "${PIDS[@]}"; do
-            wait $PID
-            if [ $? -ne 0 ]; then
-              FAILED=$((FAILED + 1))
-            else
-              SUCCEEDED=$((SUCCEEDED + 1))
-            fi
-          done
-
-          echo "Scan results: $SUCCEEDED succeeded, $FAILED failed out of $SUBMITTED total"
-
-          if [ $FAILED -gt 0 ]; then
-            echo "One or more scans failed"
-            exit 1
-          fi
+      - name: Run Veracode Pipeline Scan
+        uses: veracode/Veracode-pipeline-scan-action@esd-true
+        with:
+          vid: ${{ secrets.VERACODE_API_ID }}
+          vkey: ${{ secrets.VERACODE_API_KEY }}
+          file: ${{ matrix.zip_file }}
+          fail_on_severity: critical
+          fail_build: true
