@@ -16,6 +16,18 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Diagnose git state
+        run: |
+          echo "Current branch/HEAD:"
+          git rev-parse --abbrev-ref HEAD
+          echo "HEAD commit:"
+          git rev-parse HEAD
+          echo "origin/master commit:"
+          git rev-parse origin/master
+          echo ""
+          echo "Git diff output:"
+          git diff --name-only origin/${{ github.base_ref }}...HEAD 2>/dev/null || echo "DIFF FAILED"
+
       - name: Fetch base branch
         run: |
           git fetch origin ${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }} 2>/dev/null || true
