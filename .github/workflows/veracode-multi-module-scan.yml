@@ -61,7 +61,7 @@ jobs:
           # Filter to only folders containing .csproj files
           FILTERED_MODULES=()
           while IFS= read -r MODULE; do
-            if find "$MODULE" -maxdepth 1 -name "*.csproj" -quit 2>/dev/null | grep -q .; then
+            if find "$MODULE" -maxdepth 1 -name "*.csproj" -print -quit 2>/dev/null | grep -q .; then
               FILTERED_MODULES+=("$MODULE")
             fi
           done <<< "$MODULES"
