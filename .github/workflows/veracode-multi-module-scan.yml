@@ -11,7 +11,41 @@ jobs:
     outputs:
       modules: ${{ steps.detect.outputs.modules }}
     steps:
-      # Will be populated in Task 2
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch base branch
+        run: |
+          git fetch origin ${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }} 2>/dev/null || true
+
+      - name: Detect changed modules
+        id: detect
+        run: |
+          # Get all changed files from base to PR branch
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD 2>/dev/null || git diff --name-only HEAD~1...HEAD)
+
+          # Extract unique top-level folder names
+          MODULES=$(echo "$CHANGED_FILES" | cut -d'/' -f1 | sort -u | grep -v '^$')
+
+          # Filter to only folders containing .csproj files
+          FILTERED_MODULES=()
+          for MODULE in $MODULES; do
+            if [ -f "$MODULE"/*.csproj ]; then
+              FILTERED_MODULES+=("$MODULE")
+            fi
+          done
+
+          # Convert to JSON array
+          if [ ${#FILTERED_MODULES[@]} -eq 0 ]; then
+            MODULES_JSON="[]"
+          else
+            MODULES_JSON=$(printf '%s\n' "${FILTERED_MODULES[@]}" | jq -R . | jq -s .)
+          fi
+
+          echo "modules=$MODULES_JSON" >> $GITHUB_OUTPUT
+          echo "Changed modules: $MODULES_JSON"
 
   package-modules:
     name: Package Modules
