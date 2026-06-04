@@ -196,6 +196,7 @@ jobs:
     needs: combine-zips
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         zip_file: ${{ fromJson(needs.combine-zips.outputs.all_zips) }}
     steps:
